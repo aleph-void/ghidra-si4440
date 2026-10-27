@@ -191,11 +191,12 @@ define register offset=$(DPS_REG_NUM) size=1 [ AUXR1 ]; # Bit 0 is DPS
 
 @define CY 		"PSW[7,1]"
 @define AC  	"PSW[6,1]"
-@define N   	"PSW[5,1]"
+@define F0  	"PSW[5,1]"
 @define RS1  	"PSW[4,1]"
 @define RS0  	"PSW[3,1]"
 @define OV		"PSW[2,1]"
-@define Z  		"PSW[1,1]"
+@define F1  		"PSW[1,1]"
+@define P   		"PSW[0,1]"
 
 @if defined(MX51)
 # remap these into the normal register file for decompiler use.
@@ -341,40 +342,43 @@ attach variables  ri [ R0 R1 ];
 
 # flags macros
 
-#macro addflags(op1, op2) {   # Flags set by add instructions
-# PSW = PSW & 0x7b;
-# PSW = PSW | (carry(op1,op2)<<7)        # Check for carry
-#           | (scarry(op1,op2)<<2);      # Check for signed carry
-#}
-
-#macro subflags(op1, op2) {   # Flags set by sub instructions
-# PSW = PSW & 0x7b;
-# PSW = PSW | ((op1<op2)<<7)             # Check for borrow
-#           | (sborrow(op1,op2)<<2);     # Check for signed borrow
-#}
-
-#macro compflags(op1, op2) {  # Flags set by the compare instructions
-# PSW = PSW & 0x7f;
-# PSW = PSW | ((op1 < op2) << 7);
-#}
-
-macro addflags(op1, op2) {   # Flags set by add instructions
-$(CY) = (carry(op1,op2));        # Check for carry
- #OV = (scarry(op1,op2));      # Check for signed carry
+## 8051 flags (PSW): CY bit 7, AC bit 6, F0 bit 5 (user flag, never touched by instructions), RS1/RS0, OV bit 2,
+# bit 1 (user flag), P bit 0 (parity of ACC: see the PSW operands, which refresh it when PSW is read)
+macro addflags(op1, op2) {   # ADD
+ local a:1 = op1;
+ local b:1 = op2;
+ local lo:1 = (a & 0xf) + (b & 0xf);
+ $(CY) = carry(a, b);
+ $(AC) = lo > 0xf;
+ $(OV) = scarry(a, b);
 }
 
-macro subflags(op1, op2) {   # Flags set by sub instructions
-$(CY) = (op1 < op2);        # Check for carry
- #OV = sborrow(op1,op2);      # Check for signed carry
+macro addcflags(op1, op2, cin) {   # ADDC: cin is the carry flag read before it is overwritten
+ local a:1 = op1;
+ local b:1 = op2;
+ local c:1 = cin;
+ local lo:1 = (a & 0xf) + (b & 0xf) + c;
+ local wide:2 = zext(a) + zext(b) + zext(c);
+ local res:1 = a + b + c;
+ $(CY) = wide > 0xff;
+ $(AC) = lo > 0xf;
+ $(OV) = (((a ^ res) & (b ^ res)) >> 7) != 0;
 }
 
-macro compflags(op1, op2) {  # Flags set by the compare instructions
-$(CY) = (op1 < op2);        # Check for carry
+macro subbflags(op1, op2, cin) {   # SUBB: borrow in/out in CY
+ local a:1 = op1;
+ local b:1 = op2;
+ local c:1 = cin;
+ local res:1 = a - b - c;
+ local wa:2 = zext(a);
+ local wb:2 = zext(b) + zext(c);
+ $(CY) = wa < wb;
+ $(AC) = (a & 0xf) < ((b & 0xf) + c);
+ $(OV) = (((a ^ b) & (a ^ res)) >> 7) != 0;
 }
 
-macro resultflags(op1) { # Set N,Z flag for results
- $(N) = op1 s< 0;
- $(Z) = op1 == 0;
+macro compflags(op1, op2) {  # CJNE: CY = first operand below the second (unsigned)
+$(CY) = (op1 < op2);
 }
 
 macro push8(val) {
@@ -710,15 +714,15 @@ Rel16:   relAddr is rel16		     [ relAddr=inst_next+rel16; ] { export *:1 relAdd
 :ACALL  Addr11 is  $(GROUP1) & aaddrfill=1 & aoplo=1 & Addr11   { ret:2 = inst_next; push16(ret); call Addr11; }
 @endif
 
-:ADD Areg,rn      is $(GROUP2) & ophi=2          & Areg & rnfill=1 & rn 	 { addflags(ACC,rn); ACC = ACC + rn; resultflags(ACC); }
-:ADD Areg,Direct  is $(GROUP1) & ophi=2 & oplo=5 & Areg; Direct  { addflags(ACC,Direct); ACC = ACC + Direct; resultflags(ACC); }
-:ADD Areg,Ri      is $(GROUP2) & ophi=2          & Areg & rifill=3 & Ri	 { addflags(ACC,Ri); ACC = ACC + Ri; resultflags(ACC); }
-:ADD Areg,Data    is $(GROUP1) & ophi=2 & oplo=4 & Areg; Data    { addflags(ACC,Data); ACC = ACC + Data; resultflags(ACC); }
+:ADD Areg,rn is $(GROUP2) & ophi=2          & Areg & rnfill=1 & rn { local x = ACC; local y = rn; addflags(x, y); ACC = x + y; }
+:ADD Areg,Direct is $(GROUP1) & ophi=2 & oplo=5 & Areg; Direct { local x = ACC; local y = Direct; addflags(x, y); ACC = x + y; }
+:ADD Areg,Ri is $(GROUP2) & ophi=2          & Areg & rifill=3 & Ri { local x = ACC; local y = Ri; addflags(x, y); ACC = x + y; }
+:ADD Areg,Data is $(GROUP1) & ophi=2 & oplo=4 & Areg; Data { local x = ACC; local y = Data; addflags(x, y); ACC = x + y; }
 
-:ADDC Areg,rn     is $(GROUP2) & ophi=3          & Areg & rnfill=1 & rn	   { tmp:1 =$(CY)+ rn; addflags(ACC,tmp); ACC = ACC + tmp; resultflags(ACC); }
-:ADDC Areg,Direct is $(GROUP1) & ophi=3 & oplo=5 & Areg; Direct    { tmp:1 =$(CY)+ Direct; addflags(ACC,tmp); ACC = ACC + tmp; resultflags(ACC); }
-:ADDC Areg,Ri     is $(GROUP2) & ophi=3          & Areg & rifill=3 & Ri	   { tmp:1 =$(CY)+ Ri; addflags(ACC,tmp); ACC = ACC + tmp; resultflags(ACC); }
-:ADDC Areg,Data   is $(GROUP1) & ophi=3 & oplo=4 & Areg; Data      {  tmp:1 =$(CY)+ Data; addflags(ACC,tmp); ACC = ACC + tmp; resultflags(ACC); }
+:ADDC Areg,rn is $(GROUP2) & ophi=3          & Areg & rnfill=1 & rn { local x = ACC; local y = rn; local c = $(CY); addcflags(x, y, c); ACC = x + y + c; }
+:ADDC Areg,Direct is $(GROUP1) & ophi=3 & oplo=5 & Areg; Direct { local x = ACC; local y = Direct; local c = $(CY); addcflags(x, y, c); ACC = x + y + c; }
+:ADDC Areg,Ri is $(GROUP2) & ophi=3          & Areg & rifill=3 & Ri { local x = ACC; local y = Ri; local c = $(CY); addcflags(x, y, c); ACC = x + y + c; }
+:ADDC Areg,Data is $(GROUP1) & ophi=3 & oplo=4 & Areg; Data { local x = ACC; local y = Data; local c = $(CY); addcflags(x, y, c); ACC = x + y + c; }
 
 #TODO: which GROUP does AJMP belong to ??
 @if defined(MCS80390)
@@ -727,14 +731,14 @@ Rel16:   relAddr is rel16		     [ relAddr=inst_next+rel16; ] { export *:1 relAdd
 :AJMP Addr11 is  $(GROUP1) & aaddrfill=0 & aoplo=1 & Addr11			 { goto Addr11; }
 @endif
 
-:ANL Areg,rn     is $(GROUP2) & ophi=5 & Areg & rnfill=1 & rn					 { ACC = ACC & rn; resultflags(ACC); }
-:ANL Areg,Direct is $(GROUP1) & ophi=5 & oplo=5 & Areg; Direct		 { ACC = ACC & Direct; resultflags(ACC); }
-:ANL Areg,Ri     is $(GROUP2) & ophi=5 & Areg & rifill=3 & Ri					 { ACC = ACC & Ri; resultflags(ACC); }
-:ANL Areg,Data   is $(GROUP2) & ophi=5 & oplo=4 & Areg; Data		 { ACC = ACC & Data; resultflags(ACC); }
-:ANL Direct,Areg is $(GROUP1) & ophi=5 & oplo=2 & Areg; Direct		 { tmp:1 = Direct & ACC; Direct = tmp; resultflags(tmp); }
-:ANL Direct,Data is $(GROUP1) & ophi=5 & oplo=3; Direct; Data		 { tmp:1 = Direct & Data; Direct = tmp; resultflags(tmp); }
+:ANL Areg,rn     is $(GROUP2) & ophi=5 & Areg & rnfill=1 & rn					 { ACC = ACC & rn; }
+:ANL Areg,Direct is $(GROUP1) & ophi=5 & oplo=5 & Areg; Direct		 { ACC = ACC & Direct; }
+:ANL Areg,Ri     is $(GROUP2) & ophi=5 & Areg & rifill=3 & Ri					 { ACC = ACC & Ri; }
+:ANL Areg,Data   is $(GROUP2) & ophi=5 & oplo=4 & Areg; Data		 { ACC = ACC & Data; }
+:ANL Direct,Areg is $(GROUP1) & ophi=5 & oplo=2 & Areg; Direct		 { tmp:1 = Direct & ACC; Direct = tmp; }
+:ANL Direct,Data is $(GROUP1) & ophi=5 & oplo=3; Direct; Data		 { tmp:1 = Direct & Data; Direct = tmp; }
 
-:ANL CY,BitAddr   is $(GROUP1) & CY & ophi=8  & oplo=2; BitAddr  & bitaddr57=7 & sfrbit3=0 & sfrbit & BitByteAddr {tmp:1 = BitByteAddr; $(CY)=$(CY)& ((tmp>>sfrbit)&1); resultflags(tmp); }
+:ANL CY,BitAddr   is $(GROUP1) & CY & ophi=8  & oplo=2; BitAddr  & bitaddr57=7 & sfrbit3=0 & sfrbit & BitByteAddr {tmp:1 = BitByteAddr; $(CY)=$(CY)& ((tmp>>sfrbit)&1); }
 :ANL CY,BitAddr2  is $(GROUP1) & CY & ophi=11 & oplo=0; BitAddr2 & bitaddr57=7 & sfrbit3=0 & sfrbit & BitByteAddr {tmp:1 = BitByteAddr; $(CY)=$(CY)& (~((tmp>>sfrbit)&1));  }
 @if BIT_OPS == "BIT_ADDRS"
 :ANL CY,BitAddr   is $(GROUP1) & CY & ophi=8  & oplo=2; BitAddr  & sfrbit & BitByteAddr {$(CY)=$(CY)& BitAddr; }
@@ -777,14 +781,33 @@ Rel16:   relAddr is rel16		     [ relAddr=inst_next+rel16; ] { export *:1 relAdd
 :CPL BitAddr  is $(GROUP1) & ophi=11 & oplo=2; BitAddr & sfrbit	& BitByteAddr { tmp:1 = (1<<sfrbit); BitByteAddr = BitByteAddr ^ tmp; }
 @endif
 
-:DA Areg    is $(GROUP1) & ophi=13 & oplo=4 & Areg    { ACC = decimal_adjust(ACC); }
+:DA Areg    is $(GROUP1) & ophi=13 & oplo=4 & Areg    {
+  local t:2 = zext(ACC);
+  if (((ACC & 0xf) <= 9) && ($(AC) == 0)) goto <high>;
+  t = t + 6;
+  $(CY) = $(CY) | (t > 0xff);
+<high>
+  if (((t & 0xf0) <= 0x90) && ($(CY) == 0)) goto <done>;
+  t = t + 0x60;
+  $(CY) = 1;
+<done>
+  ACC = t:1;
+}
 
 :DEC Areg   is $(GROUP1) & ophi=1 & oplo=4 & Areg	  { ACC = ACC - 1; }
 :DEC rn     is $(GROUP2) & ophi=1 & rnfill=1 & rn			      { rn = rn - 1; }
 :DEC Direct is $(GROUP1) & ophi=1 & oplo=5; Direct	  { Direct = Direct - 1; }
 :DEC Ri     is $(GROUP2) & ophi=1 & rifill=3 & Ri			      { Ri = Ri - 1; }
 
-:DIV ABreg     is $(GROUP1) & ophi=8 & oplo=4 & ABreg		  { PSW = PSW & 0x7b;  tmp : 1 = (B == 0)<<2; PSW = PSW | tmp; if (B==0) goto inst_next;  tmp2 : 1 = ACC; ACC = tmp2 / B; B = tmp2 % B; }
+:DIV ABreg     is $(GROUP1) & ophi=8 & oplo=4 & ABreg	  {
+  $(CY) = 0;
+  $(OV) = (B == 0);
+  if (B == 0) goto inst_next;
+  local q:1 = ACC / B;
+  local r:1 = ACC % B;
+  ACC = q;
+  B = r;
+}
 
 # Specifying rnfill here is a temporary to allow distinguishing DJNZ1 and XCHD
 :DJNZ rn,Rel8     is $(GROUP2) & ophi=13 & rnfill=1 & rnfill=1 & rn; Rel8	 { rn = rn - 1; if (rn!=0) goto Rel8; }
@@ -885,7 +908,7 @@ Rel16:   relAddr is rel16		     [ relAddr=inst_next+rel16; ] { export *:1 relAdd
 :MOVX  RiX,Areg     is $(GROUP2) & ophi=15 & rifill=1 & RiX & Areg	{ RiX = ACC; }
 :MOVX  ATDPTR,Areg  is $(GROUP1) & ophi=15 & oplo=0 & Areg & ATDPTR	{ ATDPTR = ACC; }
 
-:MUL ABreg         is $(GROUP1) & ophi=10 & oplo=4 & ABreg	   { PSW = PSW & 0x7b; tmp:2 = zext(ACC) * zext(B); ACC = tmp(0); B = tmp(1); PSW = PSW | ((B!=0)<<2); }
+:MUL ABreg         is $(GROUP1) & ophi=10 & oplo=4 & ABreg	   { local p:2 = zext(ACC) * zext(B); ACC = p(0); B = p(1); $(CY) = 0; $(OV) = (B != 0); }
 #:MUL Areg,Breg   is $(GROUP1) & ophi=10 & oplo=4 & Areg & Breg { PSW = PSW & 0x7b; tmp:2 = zext(ACC) * zext(B); ACC = tmp(0); B = tmp(1); PSW = PSW | ((B!=0)<<2); }
 
 :NOP             is $(GROUP1) & ophi=0  & oplo=0	{ }
@@ -952,10 +975,10 @@ pc:3 = 0; pop24(pc); return[pc];
 
 :SJMP Rel8        is $(GROUP1) & ophi=8 & oplo=0; Rel8			{ goto Rel8; }
 
-:SUBB Areg,rn     is $(GROUP2) & ophi=9 & rnfill=1 & rn & Areg				{  tmp : 1 = rn+$(CY); subflags(ACC,tmp); ACC = ACC - tmp; }
-:SUBB Areg,Direct is $(GROUP1) & ophi=9 & oplo=5 & Areg; Direct	{  tmp:1 = Direct+$(CY); subflags(ACC,tmp); ACC = ACC - tmp; }
-:SUBB Areg,Ri     is $(GROUP2) & ophi=9 & Areg & rifill=3 & Ri				{  local tmp = Ri+$(CY); subflags(ACC,tmp); ACC = ACC - tmp; }
-:SUBB Areg,Data   is $(GROUP1) & ophi=9 & oplo=4 & Areg; Data	{ tmp:1 = Data+$(CY); subflags(ACC,tmp); ACC = ACC - tmp; }
+:SUBB Areg,rn is $(GROUP2) & ophi=9 & rnfill=1 & rn & Areg { local x = ACC; local y = rn; local c = $(CY); subbflags(x, y, c); ACC = x - y - c; }
+:SUBB Areg,Direct is $(GROUP1) & ophi=9 & oplo=5 & Areg; Direct { local x = ACC; local y = Direct; local c = $(CY); subbflags(x, y, c); ACC = x - y - c; }
+:SUBB Areg,Ri is $(GROUP2) & ophi=9 & Areg & rifill=3 & Ri { local x = ACC; local y = Ri; local c = $(CY); subbflags(x, y, c); ACC = x - y - c; }
+:SUBB Areg,Data is $(GROUP1) & ophi=9 & oplo=4 & Areg; Data { local x = ACC; local y = Data; local c = $(CY); subbflags(x, y, c); ACC = x - y - c; }
 
 :SWAP  Areg       is $(GROUP1) & ophi=12 & oplo=4 & Areg		{ ACC = (ACC>>4) | (ACC<<4); }
 
