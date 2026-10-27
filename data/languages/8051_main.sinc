@@ -8,9 +8,8 @@
 # restoring of the return value for function calls.
 #@define OMIT_RETADDR
 
-# TODO !!! need to fully employ resultflags macro after resolving the use of the above BIT_OPS !!!
-# TODO !!! Need to reconcile use of PSW vs. PSW1 for MCS251 !!!
-# TODO !!! Need to fill-out SFR bits in 80251.pspec !!!
+# (Ghidra's TODO notes about the resultflags macro, PSW1 and the 80251 pspec are gone: the N/Z resultflags macro was wrong for
+# the 8051 and has been removed, the other two concern the MCS251 variant, which this copy of the file is not built for.)
 
 @if defined(ENDIAN)
 define endian=$(ENDIAN);
@@ -676,7 +675,8 @@ BitAddr2: "/"bitaddr is bitbank=1 & sfrbyte & sfrbit	 [ bitaddr =(sfrbyte << 6)+
 BitAddr2: "/"bitaddr is bitbank=0 & lowbyte & sfrbit [ bitaddr =(lowbyte << 3)+sfrbit; ] { export *[BITS]:1 bitaddr; }
 @elif defined(MCS51) || defined(MCS80390) || defined(MX51)
 ##
-##TODO !!! 8051 SFRBITS bit overlay block is probably incorrect since there is not a 1:1 mapping to the SFR space
+## Note (was a TODO in Ghidra's file; the Si4440 build uses BIT_OPS SHIFTS, so p-code works on the bytes and BITS is display only):
+## 8051 SFRBITS bit overlay block is probably incorrect since there is not a 1:1 mapping to the SFR space
 ##  While the BitAddr is only used for disassembly markup, and labels come from pspec, the underlying data will
 ##  not map correctly.  We could switch completely to the full SFR bit mapping as done above for the 80251.
 ##  This would require a change in the BITS space size.
