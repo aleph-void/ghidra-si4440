@@ -1,0 +1,12 @@
+
+# sleigh compiled file
+data/languages/*.sla
+
+# build artefacts
+.gradle/
+build/
+dist/
+lib/
+
+# Ghidra-Rare test output
+test/__pycache__/
