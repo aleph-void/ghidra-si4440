@@ -232,7 +232,14 @@ define context contextReg
 
 @endif
 
-define pcodeop decimal_adjust;
+@if defined(SI4440)
+define register offset=0x50 size=4 contextReg;
+
+define context contextReg
+	xpage = (0,7)
+;
+@endif
+
 
 @if BIT_OPS == "PCODEOPS"
 define pcodeop get;
@@ -579,8 +586,10 @@ Ri:      @ri       is ri      { export *[INTMEM]:1 ri; }
 @if defined(MCS251)
 RiX:     @ri       is ri      { ptr:3 = 0x010000 + zext(ri); export *:1 ptr; } # 8051 8-bit External data address mapped into RAM space
 @elif defined(SI4440)
-# memory page is technical configurable through XPAGE SFR, but we'll hardcode to 0x50 as set by Si4440 firmware
-RiX:     @ri       is ri      { ptr:2 = 0x5000 + zext(ri); export *[RAM]:1 ptr; } 
+# The page behind MOVX @Ri comes from the XPAGE SFR.  Its value is a run-time state, so it is a context register here:
+# the language default is 0x50 (set by the Si4440 firmware, see the pspec); use Set Register Values on xpage to change it
+# for a range of code.
+RiX:     @ri       is ri & xpage { ptr:2 = (xpage << 8) + zext(ri); export *[RAM]:1 ptr; } 
 @elif defined(MCS51) 
 RiX:     @ri       is ri      { ptr:2 = zext(ri); export *[EXTMEM]:1 ptr; } # limited to 8-bit external data address (I/O state can be used to produce 16-bit addr)
 @elif defined(MCS80390) 

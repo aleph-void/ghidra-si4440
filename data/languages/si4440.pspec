@@ -3,6 +3,13 @@
 <processor_spec>
 
   <programcounter register="PC"/>
+
+  <context_data>
+    <context_set space="RAM">
+      <!-- page used by MOVX @Ri: the XPAGE SFR as set by the Si4440 firmware -->
+      <set name="xpage" val="0x50"/>
+    </context_set>
+  </context_data>
   
   <volatile outputop="write_volatile" inputop="read_volatile">
     <range space="SFR" first="0x0" last="0xFF"/>
