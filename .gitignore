@@ -1,6 +1,7 @@
 
 # sleigh compiled file
 data/languages/*.sla
+data/languages/*.lock
 
 # build artefacts
 .gradle/
