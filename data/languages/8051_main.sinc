@@ -1,8 +1,8 @@
 # sleigh specification file for Intel 8051
 
 #@define BIT_OPS "PCODEOPS"
-#@define BIT_OPS "SHIFTS" 
-@define BIT_OPS "BIT_ADDRS"
+@define BIT_OPS "SHIFTS"
+#@define BIT_OPS "BIT_ADDRS"
 
 # It's sometimes clearer for decompilation to omit the pushing and
 # restoring of the return value for function calls.
@@ -616,7 +616,8 @@ Direct:  R7        is bank=0 & mainreg=0x07 & R7 { export R7; }
 @endif
 
 Direct:  direct    is bank=1 & direct 	{ export *[SFR]:1 direct; }
-Direct:  PSW       is bank=1 & direct=0xD0 & PSW  { export PSW;  }
+Direct:  PSW       is bank=1 & direct=0xD0 & PSW  { PSW = (PSW & 0xfe) | (popcount(ACC) & 1); export PSW; }
+Direct:  SP        is bank=1 & direct=0x81 & SP  { export SP;  }
 Direct:  "A"       is bank=1 & direct=0xE0 	{ export ACC; }
 Direct:  B         is bank=1 & direct=0xF0 & B  { export B;  }
 Direct:  DPL       is bank=1 & direct=0x82 & DPL 	{ export DPL; }
@@ -646,7 +647,8 @@ Direct2:  R6        is bank2=0 & mainreg2=0x06 & R6 { export R6; }
 Direct2:  R7        is bank2=0 & mainreg2=0x07 & R7 { export R7; }
 @endif
 Direct2: direct2   is bank2=1 & direct2  	{ export *[SFR]:1 direct2; }
-Direct2: PSW       is bank2=1 & direct2=0xD0 & PSW  { export PSW;  }
+Direct2: PSW       is bank2=1 & direct2=0xD0 & PSW  { PSW = (PSW & 0xfe) | (popcount(ACC) & 1); export PSW; }
+Direct2: SP        is bank2=1 & direct2=0x81 & SP  { export SP;  }
 Direct2: "A"       is bank2=1 & direct2=0xE0	{ export ACC; }
 Direct2:  B        is bank2=1 & direct2=0xF0 & B  { export B;  }
 Direct2:  DPL      is bank2=1 & direct2=0x82 & DPL 	{ export DPL; }
@@ -679,7 +681,7 @@ BitAddr2: "/"bitaddr is bitbank=0 & lowbyte & sfrbit [ bitaddr =(lowbyte << 3)+s
 BitByteAddr: byteaddr 	is bitbank=1 & sfrbyte & sfrbit [ byteaddr =(sfrbyte << 3); ] { export *[SFR]:1 byteaddr; }
 BitByteAddr: "A" 		is bitbank=1 & sfrbyte=0x1C & sfrbit { export ACC; }
 BitByteAddr: B 			is bitbank=1 & sfrbyte=0x1E & sfrbit & B { export B; }
-BitByteAddr: PSW 	    is bitbank=1 & sfrbyte=0x1A & sfrbit & PSW { export PSW; }
+BitByteAddr: PSW 	    is bitbank=1 & sfrbyte=0x1A & sfrbit & PSW { PSW = (PSW & 0xfe) | (popcount(ACC) & 1); export PSW; }
 @if defined(MCS251)
 BitByteAddr: byteaddr 	is bitbank=0 & lowbyte & sfrbit [ byteaddr = lowbyte + 0x20; ] { export *[RAM]:1 byteaddr; }
 @elif defined(MX51)
