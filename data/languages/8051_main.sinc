@@ -113,7 +113,13 @@ define space EBITS    type=ram_space      size=1;
 define space register type=register_space size=1;
 
 # Register File
+@if defined(SI4440)
+# Si4440: only register bank 0 exists, memory mapped at INTMEM 0-7.  R0-R7 are varnodes of INTMEM itself, so direct
+# addresses 0-7, @R0/@R1 accesses, PUSH/POP and the register operands all reach the same bytes.
+define INTMEM offset=0x00  size=1 [ R0 R1 R2 R3 R4 R5 R6 R7 ];
+@else
 define register offset=0x00  size=1 [ R0 R1 R2 R3 R4 R5 R6 R7 ];
+@endif
 
 # for future jump table fixup
 define register offset=0x70  size=1 [ jumpTableGuard1 jumpTableGuard2 ];
@@ -135,12 +141,21 @@ define register offset=0x38  size=4 [ DPX SPX ];
 
 @elif defined(MCS51) || defined(MCS80390) || defined(MX51)
 
+@if defined(SI4440)
+define INTMEM offset=0x00  size=4 [ R0R1R2R3 ];
+define INTMEM offset=0x01  size=3 [ R1R2R3 ];  # Used as R3R2R1 
+define INTMEM offset=0x01  size=2 [ R2R1 ];
+define INTMEM offset=0x00  size=2 [ R0R1 R2R3 R4R5 R6R7 ];
+define INTMEM offset=0x04  size=4 [ R4R5R6R7 ];
+define INTMEM offset=0x05  size=3 [ R5R6R7 ];
+@else
 define register offset=0x00  size=4 [ R0R1R2R3 ];
 define register offset=0x01  size=3 [ R1R2R3 ];  # Used as R3R2R1 
 define register offset=0x01  size=2 [ R2R1 ];
 define register offset=0x00  size=2 [ R0R1 R2R3 R4R5 R6R7 ];
 define register offset=0x04  size=4 [ R4R5R6R7 ];
 define register offset=0x05  size=3 [ R5R6R7 ];
+@endif
 
 define register offset=0x0A  size=1 [ B ACC ];  # relocated to facilitate AB 16-bit access
 define register offset=0x0A  size=2 [ AB ];
@@ -586,14 +601,15 @@ Direct:  mainreg   is bank=0 & mainreg	{ export *[INTMEM]:1 mainreg; }
 @endif
 
 @if defined(SI4440)
-Direct:  "R0"        is bank=0 & mainreg=0x00 { export R0; }
-Direct:  "R1"        is bank=0 & mainreg=0x01 { export R1; }
-Direct:  "R2"        is bank=0 & mainreg=0x02 { export R2; }
-Direct:  "R3"        is bank=0 & mainreg=0x03 { export R3; }
-Direct:  "R4"        is bank=0 & mainreg=0x04 { export R4; }
-Direct:  "R5"        is bank=0 & mainreg=0x05 { export R5; }
-Direct:  "R6"        is bank=0 & mainreg=0x06 { export R6; }
-Direct:  "R7"        is bank=0 & mainreg=0x07 { export R7; }
+# Direct addresses 0-7 are the memory mapped register bank 0: export the named varnodes so that they display as R0-R7
+Direct:  R0        is bank=0 & mainreg=0x00 & R0 { export R0; }
+Direct:  R1        is bank=0 & mainreg=0x01 & R1 { export R1; }
+Direct:  R2        is bank=0 & mainreg=0x02 & R2 { export R2; }
+Direct:  R3        is bank=0 & mainreg=0x03 & R3 { export R3; }
+Direct:  R4        is bank=0 & mainreg=0x04 & R4 { export R4; }
+Direct:  R5        is bank=0 & mainreg=0x05 & R5 { export R5; }
+Direct:  R6        is bank=0 & mainreg=0x06 & R6 { export R6; }
+Direct:  R7        is bank=0 & mainreg=0x07 & R7 { export R7; }
 @endif
 
 Direct:  direct    is bank=1 & direct 	{ export *[SFR]:1 direct; }
@@ -615,6 +631,16 @@ Direct2:  mainreg2  is bank2=0 & mainreg2	{ export *[RAM]:1 mainreg2; }
 Direct2:  mainreg2  is bank2=0 & mainreg2	{ tmp:3 = mainreg2 + 0x7f0000; export *[RAM]:1 tmp; }
 @elif defined(MCS51) || defined(MCS80390)
 Direct2:  mainreg2  is bank2=0 & mainreg2	{ export *[INTMEM]:1 mainreg2; }
+@endif
+@if defined(SI4440)
+Direct2:  R0        is bank2=0 & mainreg2=0x00 & R0 { export R0; }
+Direct2:  R1        is bank2=0 & mainreg2=0x01 & R1 { export R1; }
+Direct2:  R2        is bank2=0 & mainreg2=0x02 & R2 { export R2; }
+Direct2:  R3        is bank2=0 & mainreg2=0x03 & R3 { export R3; }
+Direct2:  R4        is bank2=0 & mainreg2=0x04 & R4 { export R4; }
+Direct2:  R5        is bank2=0 & mainreg2=0x05 & R5 { export R5; }
+Direct2:  R6        is bank2=0 & mainreg2=0x06 & R6 { export R6; }
+Direct2:  R7        is bank2=0 & mainreg2=0x07 & R7 { export R7; }
 @endif
 Direct2: direct2   is bank2=1 & direct2  	{ export *[SFR]:1 direct2; }
 Direct2: PSW       is bank2=1 & direct2=0xD0 & PSW  { export PSW;  }
