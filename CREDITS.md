@@ -5,6 +5,7 @@
 | | |
 |---|---|
 | Source | https://github.com/astuder/Inside-EZRadioPRO (`ghidra/8051`), HEAD `e9b9f6c4403aa43965b99080b8798cf6c16e437b` ("Si4440 die also found in EZR32HG220", 2026-04-13) |
+| Repository | this repository holds the history of `ghidra/8051` only (`git subtree split`, original authors kept); the rest of Inside-EZRadioPRO (notes, slides, die photos, r2 tools) is not included |
 | Ghidra-Rare fork | branch `ghidra-rare` of the aleph-void fork; the history below the Ghidra-Rare commits is the original repository's |
 | License | MIT, Copyright (c) 2017 Adrian Studer (`LICENSE` in this directory is a copy of the repository's license) |
 | Original authors | from `git log` of the original history (204 commits): Adrian Studer (GitHub @astuder; committed as "Adrian Studer" and "Adrian", the same address). The Si4440 variant (`ghidra/8051`) was written in January 2021 and last changed in February 2023 ("add volatile for BIT address space") |
